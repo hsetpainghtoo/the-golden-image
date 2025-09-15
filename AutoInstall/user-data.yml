@@ -130,7 +130,7 @@ autoinstall:
 
       # Setup PM2 startup script
       echo -e "${CYAN}Setting up PM2 startup script...${NC}"
-      pm2 startup systemd -u pos --hp /home/pos
+      pm2 startup
       echo -e "${GREEN}PM2 startup script setup completed!${NC}"
 
       # Display results
