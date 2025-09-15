@@ -2,7 +2,7 @@
 
 set -e  # Exit on any error
 
-echo "Creating bootable Ubuntu Server ISO..."
+echo "Creating Bootable Ubuntu Server ISO..."
 
 # Get the actual user's home directory (even when run with sudo)
 if [ -n "$SUDO_USER" ]; then
@@ -16,8 +16,19 @@ fi
 echo "Using home directory: $USER_HOME"
 echo "Running as user: $ACTUAL_USER"
 
+# Define paths
+ISO_ROOT_DIR="$USER_HOME/custom-iso/iso-root"
+OUTPUT_ISO="$USER_HOME/custom-iso/FMSSoftwareInstaller.iso"
+
+# Check if iso-root directory exists
+if [ ! -d "$ISO_ROOT_DIR" ]; then
+    echo "ERROR: iso-root directory not found at: $ISO_ROOT_DIR"
+    echo "Please run the ready-setup.sh script first to extract the ISO"
+    exit 1
+fi
+
 # Navigate to the iso-root directory
-cd "$USER_HOME/custom-iso/iso-root/"
+cd "$ISO_ROOT_DIR"
 
 # Check for required boot files
 echo "Checking boot file structure..."
@@ -78,7 +89,7 @@ else
 fi
 
 # Remove old ISO
-sudo rm -f ../FMSServerInstaller.iso
+sudo rm -f "$OUTPUT_ISO"
 
 # Create the ISO with appropriate options based on found files
 echo "Creating ISO..."
@@ -88,7 +99,7 @@ if [ "$EFI_BOOT_FILE" = "boot/grub/efi.img" ]; then
     # Use efi.img method (common in Ubuntu Server ISOs)
     sudo xorriso -as mkisofs \
         -V "FMSServerISO" \
-        -o ../FMSServerInstaller.iso \
+        -o "$OUTPUT_ISO" \
         -r -J -joliet-long \
         -b boot/grub/i386-pc/eltorito.img \
         -c boot/grub/boot.cat \
@@ -109,7 +120,7 @@ else
     # Use direct EFI file method
     sudo xorriso -as mkisofs \
         -V "FMSServerISO" \
-        -o ../FMSServerInstaller.iso \
+        -o "$OUTPUT_ISO" \
         -r -J -joliet-long \
         -b boot/grub/i386-pc/eltorito.img \
         -c boot/grub/boot.cat \
@@ -129,20 +140,20 @@ else
 fi
 
 # Fix ownership of the created ISO
-sudo chown $ACTUAL_USER:$ACTUAL_USER ../FMSServerInstaller.iso
+sudo chown $ACTUAL_USER:$ACTUAL_USER "$OUTPUT_ISO"
 
 # Verify the ISO was created
-if [ -f "../FMSServerInstaller.iso" ]; then
-    ISO_SIZE=$(du -h ../FMSServerInstaller.iso | cut -f1)
+if [ -f "$OUTPUT_ISO" ]; then
+    ISO_SIZE=$(du -h "$OUTPUT_ISO" | cut -f1)
     echo ""
     echo "✅ ISO creation completed successfully!"
-    echo "📁 File: $USER_HOME/custom-iso/FMSServerInstaller.iso"
+    echo "📁 File: $OUTPUT_ISO"
     echo "📏 Size: $ISO_SIZE"
     echo ""
     echo "Next steps:"
     echo "1. Copy to USB with Rufus (DD mode recommended)"
     echo "2. Test boot in VM or physical machine"
-    echo "3. Check autoinstall logs if issues occur"
+    echo "3. Check AutoInstall logs if issues occur"
 else
     echo "❌ ISO creation failed!"
     exit 1

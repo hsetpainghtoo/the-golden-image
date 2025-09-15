@@ -4,7 +4,7 @@ autoinstall:
   identity:
     hostname: pos
     username: pos
-    password: "$6$bWSGmrw2Cpw.vmnt$H44c0ApKcmc81MWR5M1BX0bo6sObJHk84mf2r/EZuuVwj5MlKHl9dwM2NOP7MZSWtdR6yDhmmcx7UIEKf01dK."
+    password: '$6$bWSGmrw2Cpw.vmnt$H44c0ApKcmc81MWR5M1BX0bo6sObJHk84mf2r/EZuuVwj5MlKHl9dwM2NOP7MZSWtdR6yDhmmcx7UIEKf01dK.'
   packages:
     - docker.io
     - git
@@ -36,22 +36,23 @@ autoinstall:
     #     }
     #     echo 'Package restoration completed successfully'
     #   "
+    # =========================================================================== 
     # Create project directories under /home
-    # - curtin in-target -- mkdir -p /home/frontend
-    # - curtin in-target -- mkdir -p /home/backend
+    - curtin in-target -- mkdir -p /home/frontend
+    - curtin in-target -- mkdir -p /home/backend
     # Copy frontend and backend from ISO
-    # - curtin in-target -- cp -r /cdrom/custom-configs/frontend/* /home/frontend/
-    # - curtin in-target -- cp -r /cdrom/custom-configs/backend/* /home/backend/
+    - curtin in-target -- cp -r /cdrom/custom-configs/frontend/* /home/frontend/
+    - curtin in-target -- cp -r /cdrom/custom-configs/backend/* /home/backend/
     # Copy env files
-    # - curtin in-target -- cp /home/frontend/.env.example /home/frontend/.env
-    # - curtin in-target -- cp /home/backend/.env.local /home/backend/.env
+    - curtin in-target -- cp /home/frontend/.env.example /home/frontend/.env
+    - curtin in-target -- cp /home/backend/.env.local /home/backend/.env
     # Fix ownership first
-    # - curtin in-target -- chown -R pos:pos /home/frontend /home/backend
+    - curtin in-target -- chown -R pos:pos /home/frontend /home/backend
     # Add pos user to docker group
-    # - curtin in-target -- usermod -aG docker pos
+    - curtin in-target -- usermod -aG docker pos
     # Make backend entrypoint executable and run it
-    # - curtin in-target -- chmod +x /home/backend/entrypoint.sh
-    # - curtin in-target -- bash -c "cd /home/backend && ./entrypoint.sh"
+    - curtin in-target -- chmod +x /home/backend/entrypoint.sh
+    - curtin in-target -- bash -c "cd /home/backend && ./entrypoint.sh"
     # ===========================================================================
 
     # Setup frontend application using Node.js/PM2
@@ -152,10 +153,10 @@ autoinstall:
           echo "Backend container is up!";
           # Execute the cache clearing commands inside the container
           echo "Clearing application cache...";
-          timeout 120 docker-compose -f /home/backend/docker-compose-local.yml exec -T backend bash -c "php artisan optimize:clear && php artisan co>
+          timeout 120 docker-compose -f /home/backend/docker-compose-local.yml exec -T backend bash -c "php artisan optimize:clear && php artisan config:clear && php artisan config:cache";
           # Restart the containers
           echo "Restarting containers...";
-          cd /home/backend && docker-compose -f docker-compose-local.yml down && docker-compose-local.yml up -d;
+          cd /home/backend && docker-compose -f docker-compose-local.yml down && docker-compose -f docker-compose-local.yml up -d;
           # Wait for container to come back up
           echo "Waiting for container to restart...";
           sleep 15;
@@ -196,9 +197,9 @@ autoinstall:
       PIDFile=/home/pos/.pm2/pm2.pid
       Restart=on-failure
 
-      ExecStart=/usr/local/lib/node_modules/pm2/bin/pm2 resurrect
-      ExecReload=/usr/local/lib/node_modules/pm2/bin/pm2 reload all
-      ExecStop=/usr/local/lib/node_modules/pm2/bin/pm2 kill
+      ExecStart=/usr/bin/pm2 resurrect
+      ExecReload=/usr/bin/pm2 reload all
+      ExecStop=/usr/bin/pm2 kill
 
       [Install]
       WantedBy=multi-user.target

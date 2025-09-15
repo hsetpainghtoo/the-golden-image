@@ -1,10 +1,10 @@
 /
 └── home
-    └── verified-iso-creation.sh
     └── pos
+        └── verified-iso-creation.sh
         └── The-Golden-Image (Project Repo)
         └── custom-iso
-            ├── FMSServerInstaller.iso
+            ├── FMSSoftwareInstaller.iso
             ├── pkglist.txt
             ├── snaplist.txt
             ├── ubuntu-22.04.5-live-server-amd64.iso
