@@ -27,7 +27,7 @@ OUTPUT_ISO="$WORK_DIR/FuelServerInstaller.iso"
 # -------------------------------
 echo "[*] Installing required tools..."
 sudo apt update
-sudo apt install -y xorriso squashfs-tools cloud-init wget git unzip isolinux syslinux-common openssh-server net-tools
+sudo apt install -y xorriso squashfs-tools cloud-init wget git unzip isolinux syslinux-common openssh-server net-tools exfatprogs
 
 # -------------------------------
 # 2. Create work directory
@@ -95,8 +95,29 @@ sudo mkdir -p "$ISO_ROOT/custom-configs"
 sudo git clone https://${USERNAME}:${PASSWORD}@github.com/digitalengineeringtech/fuel-management-frontend-nextjs.git "$ISO_ROOT/custom-configs/frontend"
 sudo git clone https://${USERNAME}:${PASSWORD}@github.com/digitalengineeringtech/fuel-management.git "$ISO_ROOT/custom-configs/backend"
 
+# ------------------------------- 
+# 9. Copy environment configuration files
+# ------------------------------- 
+echo "[*] Copying environment files..."
+
+# Copy frontend .env.example directly
+if [ -f "$ISO_ROOT/custom-configs/frontend/.env.example" ]; then
+    sudo cp "$ISO_ROOT/custom-configs/frontend/.env.example" "$ISO_ROOT/custom-configs/frontend.env"
+    echo "[+] Frontend .env.example copied as frontend.env"
+else
+    echo "[-] Warning: .env.example not found in frontend repository"
+fi
+
+# Copy backend .env.local directly  
+if [ -f "$ISO_ROOT/custom-configs/backend/.env.local" ]; then
+    sudo cp "$ISO_ROOT/custom-configs/backend/.env.local" "$ISO_ROOT/custom-configs/backend.env"
+    echo "[+] Backend .env.local copied as backend.env"
+else
+    echo "[-] Warning: .env.local not found in backend repository"
+fi
+
 # -------------------------------
-# 9. Copy ISO creation script
+# 10. Copy ISO creation script
 # -------------------------------
 echo "[*] Copying verified-iso-creation.sh to home directory..."
 sudo cp "$USER_HOME/the-golden-image/AutoInstall/verified-iso-creation.sh" "$USER_HOME/verified-iso-creation.sh"

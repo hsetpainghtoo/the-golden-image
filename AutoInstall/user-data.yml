@@ -36,20 +36,25 @@ autoinstall:
     #     }
     #     echo 'Package restoration completed successfully'
     #   "
-    # =========================================================================== 
+    # ===========================================================================
     # Create project directories under /home
     - curtin in-target -- mkdir -p /home/frontend
     - curtin in-target -- mkdir -p /home/backend
+
     # Copy frontend and backend from ISO
     - curtin in-target -- cp -r /cdrom/custom-configs/frontend/* /home/frontend/
     - curtin in-target -- cp -r /cdrom/custom-configs/backend/* /home/backend/
-    # Copy env files
-    - curtin in-target -- cp /home/frontend/.env.example /home/frontend/.env
-    - curtin in-target -- cp /home/backend/.env.local /home/backend/.env
-    # Fix ownership first
+
+    # Copy env files with existence checks
+    - curtin in-target -- bash -c "[ -f /cdrom/custom-configs/frontend.env ] && cp /cdrom/custom-configs/frontend.env /home/frontend/.env || echo 'Frontend .env not found'"
+    - curtin in-target -- bash -c "[ -f /cdrom/custom-configs/backend.env ] && cp /cdrom/custom-configs/backend.env /home/backend/.env || echo 'Backend .env not found'"
+
+    # Fix ownership
     - curtin in-target -- chown -R pos:pos /home/frontend /home/backend
+
     # Add pos user to docker group
     - curtin in-target -- usermod -aG docker pos
+
     # Make backend entrypoint executable and run it
     - curtin in-target -- chmod +x /home/backend/entrypoint.sh
     - curtin in-target -- bash -c "cd /home/backend && ./entrypoint.sh"
