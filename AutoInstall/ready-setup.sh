@@ -4,10 +4,16 @@ set -e
 # -------------------------------
 # FuelServer Custom ISO Builder
 # -------------------------------
+# Detect real user home, even if run with sudo
+if [ -n "$SUDO_USER" ]; then
+  USER_HOME=$(eval echo "~$SUDO_USER")
+else
+  USER_HOME="$HOME"
+fi
 
 ISO_URL="https://releases.ubuntu.com/22.04/ubuntu-22.04.5-live-server-amd64.iso"
 ISO_NAME="ubuntu-22.04.5-live-server-amd64.iso"
-WORK_DIR="$HOME/custom-iso"
+WORK_DIR="$USER_HOME/custom-iso"
 ISO_ROOT="$WORK_DIR/iso-root"
 OUTPUT_ISO="$WORK_DIR/FuelServerInstaller.iso"
 
@@ -29,7 +35,7 @@ fi
 # -------------------------------
 # 3. Download Ubuntu ISO
 # -------------------------------
-cd "$HOME/custom-iso"
+cd "$USER_HOME/custom-iso"
 if [ ! -f "$ISO_NAME" ]; then
     echo "[*] Downloading Ubuntu ISO..."
     wget -O "$ISO_NAME" "$ISO_URL"
@@ -57,7 +63,7 @@ sudo snap list > "$WORK_DIR/snaplist.txt"
 # -------------------------------
 echo "[*] Adding AutoInstall (cloud-init) config..."
 sudo mkdir -p "$ISO_ROOT/nocloud"
-sudo cp "$HOME/the-golden-image/AutoInstall/user-data" "$ISO_ROOT/nocloud/user-data"
+sudo cp "$USER_HOME/the-golden-image/AutoInstall/user-data" "$ISO_ROOT/nocloud/user-data"
 
 sudo tee "$ISO_ROOT/nocloud/meta-data" > /dev/null <<'EOF'
 instance-id: iid-pos
@@ -68,15 +74,15 @@ EOF
 # 6. Replace GRUB config
 # -------------------------------
 echo "[*] Replacing GRUB boot configuration..."
-sudo cp "$HOME/the-golden-image/AutoInstall/grub.cfg" "$ISO_ROOT/boot/grub/grub.cfg"
+sudo cp "$USER_HOME/the-golden-image/AutoInstall/grub.cfg" "$ISO_ROOT/boot/grub/grub.cfg"
 
 # -------------------------------
 # 7. Copy ISO creation script
 # -------------------------------
 echo "[*] Copying verified-iso-creation.sh to home directory..."
-sudo cp "$HOME/the-golden-image/AutoInstall/verified-iso-creation.sh" "$HOME/verified-iso-creation.sh"
-sudo chmod +x "$HOME/verified-iso-creation.sh"
+sudo cp "$USER_HOME/the-golden-image/AutoInstall/verified-iso-creation.sh" "$USER_HOME/verified-iso-creation.sh"
+sudo chmod +x "$USER_HOME/verified-iso-creation.sh"
 
 echo "[*] Setup complete! Now run the ISO creation script:"
-echo "    cd $HOME && sudo ./verified-iso-creation.sh"
+echo "    cd $USER_HOME && sudo ./verified-iso-creation.sh"
 echo "[*] Custom ISO will be created at: $OUTPUT_ISO"
