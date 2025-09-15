@@ -25,19 +25,49 @@ autoinstall:
     - curtin in-target -- mkdir -p /home/frontend
     - curtin in-target -- mkdir -p /home/backend
 
-    # Copy frontend and backend from ISO
-    - curtin in-target -- cp -r /cdrom/custom-configs/frontend/* /home/frontend/
-    - curtin in-target -- cp -r /cdrom/custom-configs/backend/* /home/backend/
-
-    # Copy env files with existence checks
-    - curtin in-target -- bash -c "[ -f /cdrom/custom-configs/frontend.env ] && cp /cdrom/custom-configs/frontend.env /home/frontend/.env || echo 'Frontend .env not found'"
-    - curtin in-target -- bash -c "[ -f /cdrom/custom-configs/backend.env ] && cp /cdrom/custom-configs/backend.env /home/backend/.env || echo 'Backend .env not found'"
-
-    # CRITICAL: Fix ownership FIRST before any operations
-    - curtin in-target -- chown -R pos:pos /home/frontend /home/backend
-
-    # Add pos user to docker group
-    - curtin in-target -- usermod -aG docker pos
+    # Comprehensive setup with error handling
+    - |
+      curtin in-target -- bash -c '
+      set -e
+      
+      echo "Setting up directories and permissions..."
+      
+      # Ensure pos user exists and add to docker group
+      if id "pos" >/dev/null 2>&1; then
+        echo "User pos exists, adding to docker group"
+        usermod -aG docker pos
+      else
+        echo "Warning: User pos does not exist"
+        exit 1
+      fi
+      
+      # Create directories with proper permissions
+      mkdir -p /home/frontend /home/backend
+      
+      # Copy files if they exist
+      if [ -d "/cdrom/custom-configs/frontend" ]; then
+        echo "Copying frontend files..."
+        cp -r /cdrom/custom-configs/frontend/* /home/frontend/
+      else
+        echo "Warning: Frontend source directory not found"
+      fi
+      
+      if [ -d "/cdrom/custom-configs/backend" ]; then
+        echo "Copying backend files..."
+        cp -r /cdrom/custom-configs/backend/* /home/backend/
+      else
+        echo "Warning: Backend source directory not found"
+      fi
+      
+      # Copy env files
+      [ -f "/cdrom/custom-configs/frontend.env" ] && cp /cdrom/custom-configs/frontend.env /home/frontend/.env && echo "Frontend .env copied" || echo "Frontend .env not found"
+      [ -f "/cdrom/custom-configs/backend.env" ] && cp /cdrom/custom-configs/backend.env /home/backend/.env && echo "Backend .env copied" || echo "Backend .env not found"
+      
+      # Set ownership - this should work now
+      echo "Setting ownership..."
+      chown -R pos:pos /home/frontend /home/backend
+      echo "Ownership set successfully"
+      '
 
     # Start backend container as pos user
     - curtin in-target -- chmod +x /home/backend/entrypoint.sh
