@@ -57,7 +57,7 @@ sudo snap list > "$WORK_DIR/snaplist.txt"
 # -------------------------------
 echo "[*] Adding AutoInstall (cloud-init) config..."
 sudo mkdir -p "$ISO_ROOT/nocloud"
-sudo cp "$HOME/The-Golden-Image/AutoInstall/user-data" "$ISO_ROOT/nocloud/user-data"
+sudo cp "$HOME/the-golden-image/AutoInstall/user-data" "$ISO_ROOT/nocloud/user-data"
 
 sudo tee "$ISO_ROOT/nocloud/meta-data" > /dev/null <<'EOF'
 instance-id: iid-pos
@@ -68,13 +68,13 @@ EOF
 # 6. Replace GRUB config
 # -------------------------------
 echo "[*] Replacing GRUB boot configuration..."
-sudo cp "$HOME/The-Golden-Image/AutoInstall/grub.cfg" "$ISO_ROOT/boot/grub/grub.cfg"
+sudo cp "$HOME/the-golden-image/AutoInstall/grub.cfg" "$ISO_ROOT/boot/grub/grub.cfg"
 
 # -------------------------------
 # 7. Copy ISO creation script
 # -------------------------------
 echo "[*] Copying verified-iso-creation.sh to home directory..."
-sudo cp "$HOME/The-Golden-Image/AutoInstall/verified-iso-creation.sh" "$HOME/verified-iso-creation.sh"
+sudo cp "$HOME/the-golden-image/AutoInstall/verified-iso-creation.sh" "$HOME/verified-iso-creation.sh"
 sudo chmod +x "$HOME/verified-iso-creation.sh"
 
 echo "[*] Setup complete! Now run the ISO creation script:"
