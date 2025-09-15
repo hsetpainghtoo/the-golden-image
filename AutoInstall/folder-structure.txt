@@ -1,0 +1,32 @@
+/
+└── home
+    └── verified-iso-creation.sh
+    └── pos
+        └── The-Golden-Image (Project Repo)
+        └── custom-iso
+            ├── FMSServerInstaller.iso
+            ├── pkglist.txt
+            ├── snaplist.txt
+            ├── ubuntu-22.04.5-live-server-amd64.iso
+            └── iso-root
+                ├── boot
+                │   ├── grub
+                │   │   └── grub.cfg
+                │   └── memtest86+.bin
+                ├── casper
+                ├── custom-configs
+                ├── dists
+                ├── EFI
+                │   └── BOOT
+                │       ├── bootx64.efi
+                │       ├── grubx64.efi
+                │       └── mmx64.efi
+                ├── install
+                ├── md5sum.txt
+                ├── nocloud
+                │   ├── meta-data
+                │   └── user-data
+                ├── pool
+                ├── ubuntu
+                ├── boot.catalog
+                └── snapshot.txt
