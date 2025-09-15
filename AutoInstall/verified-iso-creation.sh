@@ -154,6 +154,23 @@ if [ -f "$OUTPUT_ISO" ]; then
     echo "1. Copy to USB with Rufus"
     echo "2. Test boot in VM or physical machine"
     echo "3. Check AutoInstall logs if issues occur"
+    echo ""
+    echo "🧪 To test with QEMU for RealVNC Viewer"
+    echo "1. sudo qemu-img create -f qcow2 test-vm.qcow2 20G"
+    echo "2. qemu-system-x86_64 \\
+        -enable-kvm \\
+        -m 4G \\
+        -smp 2 \\
+        -cpu host \\
+        -cdrom ~/custom-iso/FMSSoftwareInstaller.iso \\
+        -drive file=test-vm.qcow2,format=qcow2,if=virtio \\
+        -netdev user,id=net0,hostfwd=tcp::2222-:22 \\
+        -device virtio-net,netdev=net0 \\
+        -vnc 0.0.0.0:1 \\
+        -name \"FMS-ISO-Test\" \\
+        -boot d"
+    echo "3. Connect to VNC at: 127.0.0.1:5901"
+    echo "   Or from another machine using RealVNC Viewer: YOUR_IP_ADDRESS:5901"
 else
     echo "❌ ISO creation failed!"
     exit 1
