@@ -12,6 +12,8 @@ autoinstall:
     - unzip
     - nodejs
     - npm
+    - openssh-server
+    - net-tools
   late-commands:
     # Install docker-compose
     - curtin in-target -- apt-get install -y docker-compose
@@ -50,10 +52,10 @@ autoinstall:
     - curtin in-target -- bash -c "[ -f /cdrom/custom-configs/backend.env ] && cp /cdrom/custom-configs/backend.env /home/backend/.env || echo 'Backend .env not found'"
 
     # Fix ownership
-    - curtin in-target -- chown -R pos:pos /home/frontend /home/backend
+    # - curtin in-target -- chown -R pos:pos /home/frontend /home/backend
 
     # Add pos user to docker group
-    - curtin in-target -- usermod -aG docker pos
+    # - curtin in-target -- usermod -aG docker pos
 
     # Make backend entrypoint executable and run it
     - curtin in-target -- chmod +x /home/backend/entrypoint.sh
@@ -146,7 +148,7 @@ autoinstall:
       '
 
     # Fix ownership after frontend setup
-    - curtin in-target -- chown -R pos:pos /home/frontend /home/backend
+    # - curtin in-target -- chown -R pos:pos /home/frontend /home/backend
 
     # Backend container setup and database operations
     - |
@@ -180,34 +182,34 @@ autoinstall:
       '
 
     # Enable Docker at boot
-    - curtin in-target -- systemctl enable docker
+    # - curtin in-target -- systemctl enable docker
 
     # Create systemd service for PM2 to ensure it starts properly
-    - |
-      curtin in-target -- bash -c '
-      cat > /etc/systemd/system/pm2-pos.service << EOF
-      [Unit]
-      Description=PM2 process manager for pos user
-      Documentation=https://pm2.keymetrics.io/
-      After=network.target
+    # - |
+    #   curtin in-target -- bash -c '
+    #   cat > /etc/systemd/system/pm2-pos.service << EOF
+    #   [Unit]
+    #   Description=PM2 process manager for pos user
+    #   Documentation=https://pm2.keymetrics.io/
+    #   After=network.target
 
-      [Service]
-      Type=forking
-      User=pos
-      LimitNOFILE=infinity
-      LimitNPROC=infinity
-      LimitCORE=infinity
-      Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-      Environment=PM2_HOME=/home/pos/.pm2
-      PIDFile=/home/pos/.pm2/pm2.pid
-      Restart=on-failure
+    #   [Service]
+    #   Type=forking
+    #   User=pos
+    #   LimitNOFILE=infinity
+    #   LimitNPROC=infinity
+    #   LimitCORE=infinity
+    #   Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+    #   Environment=PM2_HOME=/home/pos/.pm2
+    #   PIDFile=/home/pos/.pm2/pm2.pid
+    #   Restart=on-failure
 
-      ExecStart=/usr/bin/pm2 resurrect
-      ExecReload=/usr/bin/pm2 reload all
-      ExecStop=/usr/bin/pm2 kill
+    #   ExecStart=/usr/bin/pm2 resurrect
+    #   ExecReload=/usr/bin/pm2 reload all
+    #   ExecStop=/usr/bin/pm2 kill
 
-      [Install]
-      WantedBy=multi-user.target
-      EOF
-      systemctl enable pm2-pos.service
-      '
+    #   [Install]
+    #   WantedBy=multi-user.target
+    #   EOF
+    #   systemctl enable pm2-pos.service
+    #   '
