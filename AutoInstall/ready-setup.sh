@@ -63,7 +63,7 @@ sudo snap list > "$WORK_DIR/snaplist.txt"
 # -------------------------------
 echo "[*] Adding AutoInstall (cloud-init) config..."
 sudo mkdir -p "$ISO_ROOT/nocloud"
-sudo cp "$USER_HOME/the-golden-image/AutoInstall/user-data" "$ISO_ROOT/nocloud/user-data"
+sudo cp "$USER_HOME/the-golden-image/AutoInstall/user-data.yml" "$ISO_ROOT/nocloud/user-data"
 
 sudo tee "$ISO_ROOT/nocloud/meta-data" > /dev/null <<'EOF'
 instance-id: iid-pos
