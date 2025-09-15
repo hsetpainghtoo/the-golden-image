@@ -1,0 +1,207 @@
+#cloud-config
+autoinstall:
+  version: 1
+  identity:
+    hostname: pos
+    username: pos
+    password: "$6$bWSGmrw2Cpw.vmnt$H44c0ApKcmc81MWR5M1BX0bo6sObJHk84mf2r/EZuuVwj5MlKHl9dwM2NOP7MZSWtdR6yDhmmcx7UIEKf01dK."
+  packages:
+    - docker.io
+    - git
+    - curl
+    - unzip
+    - nodejs
+    - npm
+  late-commands:
+    # Install docker-compose
+    - curtin in-target -- apt-get install -y docker-compose
+    # ===========================================================================
+    # Restore apt packages
+    # - curtin in-target -- bash -c "dpkg --set-selections < /cdrom/pkglist.txt && apt-get -y dselect-upgrade"
+    # (or  alternatively)
+    # Restore apt packages with comprehensive error handling
+    # - curtin in-target -- bash -c "
+    #     set -e
+    #     echo 'Checking for package list...'
+    #     if [ ! -f /cdrom/pkglist.txt ]; then
+    #       echo 'Warning: /cdrom/pkglist.txt not found'
+    #       exit 0
+    #     fi
+    #     echo 'Restoring packages from pkglist.txt...'
+    #     dpkg --set-selections < /cdrom/pkglist.txt
+    #     apt-get update
+    #     DEBIAN_FRONTEND=noninteractive apt-get -y dselect-upgrade || {
+    #       echo 'dselect-upgrade failed, trying with apt-get install...'
+    #       xargs -a /cdrom/pkglist.txt apt-get install -y
+    #     }
+    #     echo 'Package restoration completed successfully'
+    #   "
+    # Create project directories under /home
+    # - curtin in-target -- mkdir -p /home/frontend
+    # - curtin in-target -- mkdir -p /home/backend
+    # Copy frontend and backend from ISO
+    # - curtin in-target -- cp -r /cdrom/custom-configs/frontend/* /home/frontend/
+    # - curtin in-target -- cp -r /cdrom/custom-configs/backend/* /home/backend/
+    # Copy env files
+    # - curtin in-target -- cp /home/frontend/.env.example /home/frontend/.env
+    # - curtin in-target -- cp /home/backend/.env.local /home/backend/.env
+    # Fix ownership first
+    # - curtin in-target -- chown -R pos:pos /home/frontend /home/backend
+    # Add pos user to docker group
+    # - curtin in-target -- usermod -aG docker pos
+    # Make backend entrypoint executable and run it
+    # - curtin in-target -- chmod +x /home/backend/entrypoint.sh
+    # - curtin in-target -- bash -c "cd /home/backend && ./entrypoint.sh"
+    # ===========================================================================
+
+    # Setup frontend application using Node.js/PM2
+    - |
+      curtin in-target -- bash -c '
+      # Color definitions
+      CYAN="\033[0;36m"
+      GREEN="\033[0;32m"
+      NC="\033[0m"
+
+      # Function to get server IP
+      get_server_ip() {
+        hostname -I | awk "{print \$1}"
+      }
+
+      # Function to check if command exists
+      command_exists() {
+        command -v "$1" >/dev/null 2>&1
+      }
+
+      echo -e "${CYAN}Setting up frontend application...${NC}"
+
+      # Get server IP
+      SERVER_IP=$(get_server_ip)
+
+      # Check if Node.js is installed (should be from packages, but verify version)
+      if ! command_exists node || ! node -v | grep -q "v2[0-9]"; then
+        echo -e "${CYAN}Installing Node.js 22.x...${NC}"
+        apt-get update
+        curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
+        apt-get install -y nodejs
+        echo -e "${GREEN}Node.js installed successfully!${NC}"
+        node -v
+      else
+        echo -e "${GREEN}Node.js already installed: $(node -v)${NC}"
+      fi
+
+      # Install global dependencies
+      echo -e "${CYAN}Installing PNPM and PM2 dependencies...${NC}"
+      npm install -g pm2 pnpm
+      echo -e "${GREEN}PNPM and PM2 Dependencies installed globally!${NC}"
+
+      # Check pm2 list
+      echo -e "${CYAN}Checking PM2 list...${NC}"
+      pm2 list
+      echo -e "${GREEN}PM2 list checked successfully!${NC}"
+
+      # Stop existing application if running
+      if pm2 id sixthkendra >/dev/null 2>&1; then
+        echo -e "${GREEN}Stopping existing application...${NC}"
+        pm2 delete sixthkendra
+      fi
+
+      # Change to frontend directory
+      cd /home/frontend
+
+      # Install the application dependencies
+      echo -e "${CYAN}Installing application dependencies...${NC}"
+      pnpm install
+      echo -e "${GREEN}Application dependencies installed successfully!${NC}"
+
+      # Build the application
+      echo -e "${CYAN}Building the application...${NC}"
+      pnpm build
+      echo -e "${GREEN}Application built successfully!${NC}"
+
+      # Start the application
+      echo -e "${CYAN}Starting the application...${NC}"
+      pm2 start pnpm --name "sixthkendra" -- run start
+
+      # Save PM2 config
+      echo -e "${CYAN}Saving PM2 config...${NC}"
+      pm2 save
+      echo -e "${GREEN}PM2 config saved successfully!${NC}"
+
+      # Setup PM2 startup script
+      echo -e "${CYAN}Setting up PM2 startup script...${NC}"
+      pm2 startup systemd -u pos --hp /home/pos
+      echo -e "${GREEN}PM2 startup script setup completed!${NC}"
+
+      # Display results
+      echo -e "\n${GREEN}Application Services:${NC}"
+      echo -e " - Frontend: http://${SERVER_IP}:3000"
+      echo -e " - PM2 Status:"
+      pm2 list
+      '
+
+    # Fix ownership after frontend setup
+    - curtin in-target -- chown -R pos:pos /home/frontend /home/backend
+
+    # Backend container setup and database operations
+    - |
+      curtin in-target -- bash -c '
+      echo "Waiting for backend container to be ready...";
+      # Wait for backend container to be running
+      for i in {1..30}; do
+        if docker ps --filter "name=backend" --filter "status=running" | grep -q backend; then
+          echo "Backend container is up!";
+          # Execute the cache clearing commands inside the container
+          echo "Clearing application cache...";
+          timeout 120 docker-compose -f /home/backend/docker-compose-local.yml exec -T backend bash -c "php artisan optimize:clear && php artisan co>
+          # Restart the containers
+          echo "Restarting containers...";
+          cd /home/backend && docker-compose -f docker-compose-local.yml down && docker-compose-local.yml up -d;
+          # Wait for container to come back up
+          echo "Waiting for container to restart...";
+          sleep 15;
+          # Run migrations and seed
+          echo "Running migrations and seeding database...";
+          timeout 300 docker-compose -f /home/backend/docker-compose-local.yml exec -T backend php artisan migrate:fresh --seed;
+          echo "Database setup completed successfully!";
+          exit 0;
+        else
+          echo "Backend not ready yet... retrying ($i/30)";
+          sleep 10;
+        fi
+      done
+      echo "Backend failed to start in time, skipping DB operations.";
+      exit 1;
+      '
+
+    # Enable Docker at boot
+    - curtin in-target -- systemctl enable docker
+
+    # Create systemd service for PM2 to ensure it starts properly
+    - |
+      curtin in-target -- bash -c '
+      cat > /etc/systemd/system/pm2-pos.service << EOF
+      [Unit]
+      Description=PM2 process manager for pos user
+      Documentation=https://pm2.keymetrics.io/
+      After=network.target
+
+      [Service]
+      Type=forking
+      User=pos
+      LimitNOFILE=infinity
+      LimitNPROC=infinity
+      LimitCORE=infinity
+      Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+      Environment=PM2_HOME=/home/pos/.pm2
+      PIDFile=/home/pos/.pm2/pm2.pid
+      Restart=on-failure
+
+      ExecStart=/usr/local/lib/node_modules/pm2/bin/pm2 resurrect
+      ExecReload=/usr/local/lib/node_modules/pm2/bin/pm2 reload all
+      ExecStop=/usr/local/lib/node_modules/pm2/bin/pm2 kill
+
+      [Install]
+      WantedBy=multi-user.target
+      EOF
+      systemctl enable pm2-pos.service
+      '
