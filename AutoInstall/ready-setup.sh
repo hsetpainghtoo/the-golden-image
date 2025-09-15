@@ -16,7 +16,7 @@ OUTPUT_ISO="$WORK_DIR/FuelServerInstaller.iso"
 # -------------------------------
 echo "[*] Installing required tools..."
 sudo apt update
-sudo apt install -y xorriso squashfs-tools cloud-init wget git unzip isolinux syslinux-common
+sudo apt install -y xorriso squashfs-tools cloud-init wget git unzip isolinux syslinux-common openssh-server net-tools
 
 # -------------------------------
 # 2. Create work directory
