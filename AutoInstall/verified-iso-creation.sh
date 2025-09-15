@@ -151,7 +151,7 @@ if [ -f "$OUTPUT_ISO" ]; then
     echo "📏 Size: $ISO_SIZE"
     echo ""
     echo "Next steps:"
-    echo "1. Copy to USB with Rufus (DD mode recommended)"
+    echo "1. Copy to USB with Rufus"
     echo "2. Test boot in VM or physical machine"
     echo "3. Check AutoInstall logs if issues occur"
 else
