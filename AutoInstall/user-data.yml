@@ -17,28 +17,10 @@ autoinstall:
   late-commands:
     # Install docker-compose
     - curtin in-target -- apt-get install -y docker-compose
-    # ===========================================================================
-    # Restore apt packages
-    # - curtin in-target -- bash -c "dpkg --set-selections < /cdrom/pkglist.txt && apt-get -y dselect-upgrade"
-    # (or  alternatively)
-    # Restore apt packages with comprehensive error handling
-    # - curtin in-target -- bash -c "
-    #     set -e
-    #     echo 'Checking for package list...'
-    #     if [ ! -f /cdrom/pkglist.txt ]; then
-    #       echo 'Warning: /cdrom/pkglist.txt not found'
-    #       exit 0
-    #     fi
-    #     echo 'Restoring packages from pkglist.txt...'
-    #     dpkg --set-selections < /cdrom/pkglist.txt
-    #     apt-get update
-    #     DEBIAN_FRONTEND=noninteractive apt-get -y dselect-upgrade || {
-    #       echo 'dselect-upgrade failed, trying with apt-get install...'
-    #       xargs -a /cdrom/pkglist.txt apt-get install -y
-    #     }
-    #     echo 'Package restoration completed successfully'
-    #   "
-    # ===========================================================================
+    
+    # Enable Docker at boot
+    - curtin in-target -- systemctl enable docker
+    
     # Create project directories under /home
     - curtin in-target -- mkdir -p /home/frontend
     - curtin in-target -- mkdir -p /home/backend
@@ -51,20 +33,19 @@ autoinstall:
     - curtin in-target -- bash -c "[ -f /cdrom/custom-configs/frontend.env ] && cp /cdrom/custom-configs/frontend.env /home/frontend/.env || echo 'Frontend .env not found'"
     - curtin in-target -- bash -c "[ -f /cdrom/custom-configs/backend.env ] && cp /cdrom/custom-configs/backend.env /home/backend/.env || echo 'Backend .env not found'"
 
-    # Fix ownership
-    # - curtin in-target -- chown -R pos:pos /home/frontend /home/backend
+    # CRITICAL: Fix ownership FIRST before any operations
+    - curtin in-target -- chown -R pos:pos /home/frontend /home/backend
 
     # Add pos user to docker group
-    # - curtin in-target -- usermod -aG docker pos
+    - curtin in-target -- usermod -aG docker pos
 
-    # Make backend entrypoint executable and run it
+    # Start backend container as pos user
     - curtin in-target -- chmod +x /home/backend/entrypoint.sh
-    - curtin in-target -- bash -c "cd /home/backend && ./entrypoint.sh"
-    # ===========================================================================
+    - curtin in-target -- sudo -u pos bash -c "cd /home/backend && ./entrypoint.sh"
 
-    # Setup frontend application using Node.js/PM2
+    # Setup Node.js and frontend as pos user
     - |
-      curtin in-target -- bash -c '
+      curtin in-target -- sudo -u pos bash -c '
       # Color definitions
       CYAN="\033[0;36m"
       GREEN="\033[0;32m"
@@ -80,27 +61,31 @@ autoinstall:
         command -v "$1" >/dev/null 2>&1
       }
 
-      echo -e "${CYAN}Setting up frontend application...${NC}"
+      echo -e "${CYAN}Setting up frontend application as pos user...${NC}"
 
       # Get server IP
       SERVER_IP=$(get_server_ip)
 
-      # Check if Node.js is installed (should be from packages, but verify version)
+      # Install Node.js 22.x if needed (as root, then switch back)
       if ! command_exists node || ! node -v | grep -q "v2[0-9]"; then
         echo -e "${CYAN}Installing Node.js 22.x...${NC}"
-        apt-get update
-        curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
-        apt-get install -y nodejs
+        sudo apt-get update
+        curl -fsSL https://deb.nodesource.com/setup_22.x | sudo bash -
+        sudo apt-get install -y nodejs
         echo -e "${GREEN}Node.js installed successfully!${NC}"
         node -v
       else
         echo -e "${GREEN}Node.js already installed: $(node -v)${NC}"
       fi
 
-      # Install global dependencies
+      # Install global dependencies as pos user
       echo -e "${CYAN}Installing PNPM and PM2 dependencies...${NC}"
       npm install -g pm2 pnpm
       echo -e "${GREEN}PNPM and PM2 Dependencies installed globally!${NC}"
+
+      # Set PM2_HOME for pos user
+      export PM2_HOME=/home/pos/.pm2
+      mkdir -p $PM2_HOME
 
       # Check pm2 list
       echo -e "${CYAN}Checking PM2 list...${NC}"
@@ -135,11 +120,6 @@ autoinstall:
       pm2 save
       echo -e "${GREEN}PM2 config saved successfully!${NC}"
 
-      # Setup PM2 startup script
-      echo -e "${CYAN}Setting up PM2 startup script...${NC}"
-      pm2 startup
-      echo -e "${GREEN}PM2 startup script setup completed!${NC}"
-
       # Display results
       echo -e "\n${GREEN}Application Services:${NC}"
       echo -e " - Frontend: http://${SERVER_IP}:3000"
@@ -147,30 +127,31 @@ autoinstall:
       pm2 list
       '
 
-    # Fix ownership after frontend setup
-    # - curtin in-target -- chown -R pos:pos /home/frontend /home/backend
+    # Setup PM2 startup as pos user
+    - curtin in-target -- sudo -u pos bash -c "pm2 startup | grep 'sudo env' | bash"
 
-    # Backend container setup and database operations
+    # Backend container setup and database operations (wait for backend to be ready)
     - |
-      curtin in-target -- bash -c '
+      curtin in-target -- sudo -u pos bash -c '
       echo "Waiting for backend container to be ready...";
       # Wait for backend container to be running
       for i in {1..30}; do
         if docker ps --filter "name=backend" --filter "status=running" | grep -q backend; then
           echo "Backend container is up!";
+          cd /home/backend
           # Execute the cache clearing commands inside the container
           echo "Clearing application cache...";
-          timeout 120 docker-compose -f /home/backend/docker-compose-local.yml exec -T backend bash -c "php artisan optimize:clear && php artisan config:clear && php artisan config:cache";
+          timeout 120 docker-compose -f docker-compose-local.yml exec -T backend bash -c "php artisan optimize:clear && php artisan config:clear && php artisan config:cache" || echo "Cache clear failed, continuing...";
           # Restart the containers
           echo "Restarting containers...";
-          cd /home/backend && docker-compose -f docker-compose-local.yml down && docker-compose -f docker-compose-local.yml up -d;
+          docker-compose -f docker-compose-local.yml down && docker-compose -f docker-compose-local.yml up -d;
           # Wait for container to come back up
           echo "Waiting for container to restart...";
           sleep 15;
           # Run migrations and seed
           echo "Running migrations and seeding database...";
-          timeout 300 docker-compose -f /home/backend/docker-compose-local.yml exec -T backend php artisan migrate:fresh --seed;
-          echo "Database setup completed successfully!";
+          timeout 300 docker-compose -f docker-compose-local.yml exec -T backend php artisan migrate:fresh --seed || echo "Database seeding failed";
+          echo "Database setup completed!";
           exit 0;
         else
           echo "Backend not ready yet... retrying ($i/30)";
@@ -178,38 +159,36 @@ autoinstall:
         fi
       done
       echo "Backend failed to start in time, skipping DB operations.";
-      exit 1;
+      exit 0;
       '
 
-    # Enable Docker at boot
-    # - curtin in-target -- systemctl enable docker
+    # Create systemd service for PM2
+    - |
+      curtin in-target -- bash -c '
+      cat > /etc/systemd/system/pm2-pos.service << EOF
+      [Unit]
+      Description=PM2 process manager for pos user
+      Documentation=https://pm2.keymetrics.io/
+      After=network.target docker.service
 
-    # Create systemd service for PM2 to ensure it starts properly
-    # - |
-    #   curtin in-target -- bash -c '
-    #   cat > /etc/systemd/system/pm2-pos.service << EOF
-    #   [Unit]
-    #   Description=PM2 process manager for pos user
-    #   Documentation=https://pm2.keymetrics.io/
-    #   After=network.target
+      [Service]
+      Type=forking
+      User=pos
+      LimitNOFILE=infinity
+      LimitNPROC=infinity
+      LimitCORE=infinity
+      Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/home/pos/.npm-global/bin
+      Environment=PM2_HOME=/home/pos/.pm2
+      PIDFile=/home/pos/.pm2/pm2.pid
+      Restart=on-failure
+      WorkingDirectory=/home/pos
 
-    #   [Service]
-    #   Type=forking
-    #   User=pos
-    #   LimitNOFILE=infinity
-    #   LimitNPROC=infinity
-    #   LimitCORE=infinity
-    #   Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-    #   Environment=PM2_HOME=/home/pos/.pm2
-    #   PIDFile=/home/pos/.pm2/pm2.pid
-    #   Restart=on-failure
+      ExecStart=/usr/bin/pm2 resurrect
+      ExecReload=/usr/bin/pm2 reload all
+      ExecStop=/usr/bin/pm2 kill
 
-    #   ExecStart=/usr/bin/pm2 resurrect
-    #   ExecReload=/usr/bin/pm2 reload all
-    #   ExecStop=/usr/bin/pm2 kill
-
-    #   [Install]
-    #   WantedBy=multi-user.target
-    #   EOF
-    #   systemctl enable pm2-pos.service
-    #   '
+      [Install]
+      WantedBy=multi-user.target
+      EOF
+      systemctl enable pm2-pos.service
+      '
